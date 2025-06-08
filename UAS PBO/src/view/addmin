@@ -1,0 +1,362 @@
+package view;
+
+import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Component;
+import java.awt.Dimension;
+import java.awt.Font;
+import java.awt.GradientPaint;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.io.BufferedReader;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.PrintWriter;
+
+import javax.swing.BorderFactory;
+import javax.swing.Box;
+import javax.swing.BoxLayout;
+import javax.swing.JButton;
+import javax.swing.JFrame;
+import javax.swing.JLabel;
+import javax.swing.JOptionPane;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JTable;
+import javax.swing.SwingUtilities;
+import javax.swing.Timer;
+import javax.swing.border.TitledBorder;
+import javax.swing.table.DefaultTableModel;
+import javax.swing.table.TableCellRenderer;
+
+public class AdminDashboard extends JFrame {
+    private DefaultTableModel tableModel;
+    private JTable bookTable;
+
+    private DefaultTableModel userTableModel;
+    private JTable userTable;
+
+    private static final String FILE_NAME = "buku.txt";
+    private static final String USER_FILE = "user.txt";
+
+    private JButton btnTambah, btnStatus, btnHapus;
+    private JButton activeButton;
+
+    private JPanel contentPanel;
+
+    public AdminDashboard() {
+        setTitle("Admin");
+        setSize(1000, 700);
+        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setLocationRelativeTo(null);
+        setLayout(new BorderLayout());
+
+        initSidebar();
+        initContentPanel();
+
+        setVisible(true);
+    }
+
+    private void initSidebar() {
+        JPanel sidebar = new JPanel() {
+            @Override
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                Graphics2D g2d = (Graphics2D) g;
+                GradientPaint gp = new GradientPaint(0, 0, new Color(220, 220, 220), 0, getHeight(), new Color(160, 160, 160));
+                g2d.setPaint(gp);
+                g2d.fillRect(0, 0, getWidth(), getHeight());
+            }
+        };
+
+        sidebar.setPreferredSize(new Dimension(200, getHeight()));
+        sidebar.setLayout(new BoxLayout(sidebar, BoxLayout.Y_AXIS));
+        sidebar.setOpaque(false);
+
+        JLabel helloLabel = new JLabel("Hallo Admin");
+        helloLabel.setFont(new Font("SansSerif", Font.BOLD, 20));
+        helloLabel.setAlignmentX(JLabel.CENTER_ALIGNMENT);
+
+        btnTambah = createSidebarButton("Tambah Buku");
+        btnStatus = createSidebarButton("Status Buku");
+        btnHapus = createSidebarButton("Hapus Buku");
+
+        btnTambah.addActionListener(e -> {
+            setActiveButton(btnTambah);
+            openTambahBukuForm();
+        });
+        btnStatus.addActionListener(e -> {
+            setActiveButton(btnStatus);
+            handleShowStatus();
+        });
+        btnHapus.addActionListener(e -> {
+            setActiveButton(btnHapus);
+            handleDeleteBook();
+        });
+
+        sidebar.add(Box.createVerticalGlue());
+        sidebar.add(helloLabel);
+        sidebar.add(Box.createVerticalStrut(20));
+        sidebar.add(btnTambah);
+        sidebar.add(Box.createVerticalStrut(10));
+        sidebar.add(btnStatus);
+        sidebar.add(Box.createVerticalStrut(10));
+        sidebar.add(btnHapus);
+        sidebar.add(Box.createVerticalGlue());
+
+        add(sidebar, BorderLayout.WEST);
+    }
+
+    private void setActiveButton(JButton button) {
+        if (activeButton != null) activeButton.setBackground(new Color(45, 45, 85));
+        button.setBackground(new Color(0, 153, 153));
+        activeButton = button;
+    }
+
+   private JButton createSidebarButton(String text) {
+    JButton button = new JButton(text) {
+        @Override
+        protected void paintComponent(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setColor(getBackground());
+            g2.fillRoundRect(0, 0, getWidth(), getHeight(), 20, 20);
+            super.paintComponent(g);
+        }
+
+        @Override
+        public void setBackground(Color bg) {
+            super.setBackground(bg);
+            setContentAreaFilled(false);
+        }
+    };
+
+    button.setFocusPainted(false);
+    button.setForeground(Color.WHITE);
+    button.setBackground(new Color(45, 45, 85));
+    button.setFont(new Font("SansSerif", Font.BOLD, 14));
+    button.setBorder(BorderFactory.createEmptyBorder(10, 20, 10, 20));
+    button.setAlignmentX(JButton.CENTER_ALIGNMENT);
+    button.setOpaque(false);
+
+    // Ukuran tetap untuk tombol sidebar
+    button.setMaximumSize(new Dimension(160, 40));
+    button.setPreferredSize(new Dimension(160, 40));
+    button.setMinimumSize(new Dimension(160, 40));
+
+    final Color defaultColor = new Color(45, 45, 85);
+    final Color hoverColor = new Color(70, 70, 130);
+    final Timer[] timer = new Timer[1];
+    final int steps = 10, delay = 15;
+
+    button.addMouseListener(new MouseAdapter() {
+        @Override
+        public void mouseEntered(MouseEvent e) {
+            if (button != activeButton) animateColor(button, button.getBackground(), hoverColor, steps, delay, timer);
+        }
+
+        @Override
+        public void mouseExited(MouseEvent e) {
+            if (button != activeButton) animateColor(button, button.getBackground(), defaultColor, steps, delay, timer);
+        }
+    });
+
+    return button;
+}
+
+    private void animateColor(JButton button, Color from, Color to, int steps, int delay, Timer[] timer) {
+        if (timer[0] != null && timer[0].isRunning()) timer[0].stop();
+
+        final float[] fromRGB = from.getRGBComponents(null);
+        final float[] toRGB = to.getRGBComponents(null);
+
+        timer[0] = new Timer(delay, new ActionListener() {
+            int step = 0;
+            public void actionPerformed(ActionEvent e) {
+                float ratio = (float) step / steps;
+                float r = fromRGB[0] + ratio * (toRGB[0] - fromRGB[0]);
+                float g = fromRGB[1] + ratio * (toRGB[1] - fromRGB[1]);
+                float b = fromRGB[2] + ratio * (toRGB[2] - fromRGB[2]);
+                button.setBackground(new Color(r, g, b));
+                step++;
+                if (step > steps) timer[0].stop();
+            }
+        });
+        timer[0].start();
+    }
+
+    private void initContentPanel() {
+        contentPanel = new JPanel(new BorderLayout(10, 10));
+        contentPanel.setBorder(BorderFactory.createEmptyBorder(15, 15, 15, 15));
+        add(contentPanel, BorderLayout.CENTER);
+        showDashboard();
+    }
+
+    private void showDashboard() {
+        contentPanel.removeAll();
+    
+        tableModel = new DefaultTableModel(new Object[]{"ID", "Gambar", "Judul", "Penulis", "Penerbit", "Sinopsis", "Stok", "Dipinjam", "Status"}, 0);
+        bookTable = new JTable(tableModel);
+        bookTable.setRowHeight(60);
+        bookTable.getTableHeader().setDefaultRenderer(new GradientHeaderRenderer());
+    
+        JScrollPane bookScrollPane = new JScrollPane(bookTable);
+        JPanel bookPanel = new JPanel(new BorderLayout(10, 10));
+        bookPanel.setBorder(BorderFactory.createTitledBorder(BorderFactory.createEtchedBorder(), "", TitledBorder.LEFT, TitledBorder.TOP));
+    
+        JLabel bookLabel = new JLabel("\uD83D\uDCDA Daftar Buku", JLabel.CENTER);
+        bookLabel.setFont(new Font("SansSerif", Font.BOLD, 18));
+        bookPanel.add(bookLabel, BorderLayout.NORTH);
+        bookPanel.add(bookScrollPane, BorderLayout.CENTER);
+    
+        userTableModel = new DefaultTableModel(new Object[]{"Username", "Nama", "Status Peminjaman", "Buku yang sedang dipinjam"}, 0);
+        userTable = new JTable(userTableModel);
+        userTable.getTableHeader().setDefaultRenderer(new GradientHeaderRenderer());
+    
+        JScrollPane userScrollPane = new JScrollPane(userTable);
+        JPanel userPanel = new JPanel(new BorderLayout(10, 10));
+        userPanel.setBorder(BorderFactory.createTitledBorder(BorderFactory.createEtchedBorder(), "", TitledBorder.LEFT, TitledBorder.TOP));
+    
+        JLabel userLabel = new JLabel("\uD83D\uDC64 Daftar User", JLabel.CENTER);
+        userLabel.setFont(new Font("SansSerif", Font.BOLD, 18));
+        userPanel.add(userLabel, BorderLayout.NORTH);
+        userPanel.add(userScrollPane, BorderLayout.CENTER);
+    
+        JPanel center = new JPanel();
+        center.setLayout(new BoxLayout(center, BoxLayout.Y_AXIS));
+        center.add(bookPanel);
+        center.add(Box.createVerticalStrut(20));
+        center.add(userPanel);
+    
+        contentPanel.add(center, BorderLayout.CENTER);
+        contentPanel.revalidate();
+        contentPanel.repaint();
+    
+        loadBooksFromFile();
+        loadUsersFromFile();
+    }
+    
+    private void openTambahBukuForm() {
+        new TambahBukuForm(this);
+    }
+
+    private void handleDeleteBook() {
+        int row = bookTable.getSelectedRow();
+        if (row >= 0) {
+            tableModel.removeRow(row);
+            saveBooksToFile();
+        } else {
+            JOptionPane.showMessageDialog(this, "Pilih buku yang ingin dihapus.");
+        }
+    }
+
+    private void handleShowStatus() {
+        int row = bookTable.getSelectedRow();
+        if (row >= 0) {
+            int stok = Integer.parseInt(tableModel.getValueAt(row, 6).toString());
+            int pinjam = Integer.parseInt(tableModel.getValueAt(row, 7).toString());
+            String input = JOptionPane.showInputDialog(this, "Jumlah dipinjam:", pinjam);
+            if (input != null) {
+                try {
+                    int baru = Integer.parseInt(input);
+                    String status = (baru >= stok) ? "Tidak Tersedia" : "Tersedia";
+                    tableModel.setValueAt(baru, row, 7);
+                    tableModel.setValueAt(status, row, 8);
+                    saveBooksToFile();
+                } catch (NumberFormatException ignored) {}
+            }
+        } else {
+            JOptionPane.showMessageDialog(this, "Pilih buku untuk mengubah status peminjaman.");
+        }
+    }
+
+    private void loadBooksFromFile() {
+        tableModel.setRowCount(0);
+        try (BufferedReader reader = new BufferedReader(new FileReader(FILE_NAME))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                String[] data = line.split(";");
+                if (data.length >= 9) {
+                    tableModel.addRow(new Object[]{
+                        data[0], data[1], data[2], data[3], data[4],
+                        data[5], Integer.parseInt(data[6]),
+                        Integer.parseInt(data[7]), data[8]
+                    });
+                }
+            }
+        } catch (IOException e) {
+            System.err.println("Gagal memuat buku: " + e.getMessage());
+        }
+    }
+
+    private void saveBooksToFile() {
+        try (PrintWriter writer = new PrintWriter(new FileWriter(FILE_NAME))) {
+            for (int i = 0; i < tableModel.getRowCount(); i++) {
+                for (int j = 0; j < tableModel.getColumnCount(); j++) {
+                    Object val = tableModel.getValueAt(i, j);
+                    writer.print(val != null ? val.toString() : "");
+                    if (j < tableModel.getColumnCount() - 1) writer.print(";");
+                }
+                writer.println();
+            }
+        } catch (IOException e) {
+            JOptionPane.showMessageDialog(this, "Gagal menyimpan file", "Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void loadUsersFromFile() {
+        userTableModel.setRowCount(0);
+        try (BufferedReader reader = new BufferedReader(new FileReader(USER_FILE))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                String[] data = line.split(";");
+                if (data.length >= 4) {
+                    userTableModel.addRow(new Object[]{data[0], data[1], data[2], data[3]});
+                }
+            }
+        } catch (IOException e) {
+            System.err.println("Gagal memuat user: " + e.getMessage());
+        }
+    }
+
+    public void addBook(Object[] row) {
+        tableModel.addRow(row);
+        saveBooksToFile();
+    }
+
+    class GradientHeaderRenderer extends JLabel implements TableCellRenderer {
+        public GradientHeaderRenderer() {
+            setFont(getFont().deriveFont(Font.BOLD));
+            setForeground(Color.WHITE);
+            setOpaque(false);
+            setHorizontalAlignment(CENTER);
+        }
+
+        @Override
+        public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
+            setText(value != null ? value.toString() : "");
+            return this;
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            Color top = new Color(0, 102, 102);
+            Color bottom = new Color(0, 153, 153);
+            g2.setPaint(new GradientPaint(0, 0, top, 0, getHeight(), bottom));
+            g2.fillRect(0, 0, getWidth(), getHeight());
+            g2.dispose();
+            super.paintComponent(g);
+        }
+    }
+
+    public static void main(String[] args) {
+        SwingUtilities.invokeLater(AdminDashboard::new);
+    }
+}
